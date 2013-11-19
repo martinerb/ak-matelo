@@ -6,9 +6,17 @@ public class Timer {
   private static final int INIT_FLASH_TIME = 300;
   private static final int INIT_ALARM_TIME = 20;
 
+  private static Timer instance;
+
   private int deactivate_sound_time;
   private int deactivate_flash_time;
   private int activate_alarm_time;
+
+  public static Timer getInstance() {
+    if ( instance == null )
+      instance = new Timer();
+    return instance;
+  }
 
   private Timer() {
     this.deactivate_sound_time = 0;
