@@ -24,20 +24,17 @@ public class Timer {
     this.activate_alarm_time = 0;
   }
 
+  public void initDeactivateAlarmTime() {
+    this.deactivate_flash_time = INIT_FLASH_TIME;
+    this.deactivate_sound_time = INIT_SOUND_TIME;
+  }
+
   public int getDeactivateSoundTime() {
     return deactivate_sound_time;
   }
 
-  public void initDeactivateSoundTime() {
-    this.deactivate_sound_time = INIT_SOUND_TIME;
-  }
-
   public int getDeactivateFlashTime() {
     return deactivate_flash_time;
-  }
-
-  public void initDeactivateFlashTime() {
-    this.deactivate_flash_time = INIT_FLASH_TIME;
   }
 
   public int getActivateAlarmTime() {

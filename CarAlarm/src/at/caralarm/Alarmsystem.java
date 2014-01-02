@@ -59,11 +59,11 @@ public class Alarmsystem {
         break;
 
       case ALARM:
-
+        alarm();
         break;
 
       case SILENTANDOPEN:
-
+        silentAndOpen();
         break;
 
       default:
@@ -71,6 +71,8 @@ public class Alarmsystem {
         break;
       }
     } catch (AlarmException e) {
+      Timer.getInstance().initDeactivateAlarmTime();
+      Alarm.getInstance().setFlashAndSound(true);
       System.out.println("ACTIVATE ALARM!!");
       currentState = SYSTEMSTATES.ALARM;
     }
@@ -130,8 +132,10 @@ public class Alarmsystem {
       }
     } else {
       --wrong_new_pin_count;
-      if (wrong_new_pin_count <= 0)
+      if (wrong_new_pin_count <= 0) {
+        wrong_new_pin_count = 3;
         throw new AlarmException();
+      }
     }
 
     currentState = SYSTEMSTATES.OPENANDUNLOCKED;
@@ -147,6 +151,28 @@ public class Alarmsystem {
     }
   }
 
+  private void alarm() throws AlarmException {
+    if (PinCode.getInstance().isUnlockRequest() && checkUnLockRequest(false)) {
+      Alarm.getInstance().setFlashAndSound(false);
+      currentState = SYSTEMSTATES.OPENANDUNLOCKED;
+    }
+    if (Timer.getInstance().getDeactivateSoundTime() <= 0) {
+      Alarm.getInstance().setAlarmSoundOn(false);
+    }
+    if (Timer.getInstance().getDeactivateFlashTime() <= 0) {
+      Alarm.getInstance().setFlashAndSound(false);
+      currentState = SYSTEMSTATES.SILENTANDOPEN;
+    }
+  }
+
+  private void silentAndOpen() throws AlarmException {
+    if (PinCode.getInstance().isUnlockRequest() && checkUnLockRequest(false)) {
+      currentState = SYSTEMSTATES.OPENANDUNLOCKED;
+    } else if (Doors.getInstance().allDoorsClosed()) {
+      currentState = SYSTEMSTATES.ARMED;
+    }
+  }
+
   // ----------------------------- Helper Methods -----------------------------
 
   private boolean checkUnLockRequest(boolean update_lockstate) throws AlarmException {
@@ -156,9 +182,11 @@ public class Alarmsystem {
       return true;
     }
 
-    --wrong_un_lock_pin_count;
-    if (wrong_un_lock_pin_count <= 0)
-      throw new AlarmException();
+    if (currentState == SYSTEMSTATES.ARMED) {
+      --wrong_un_lock_pin_count;
+      if (wrong_un_lock_pin_count <= 0)
+        throw new AlarmException();
+    }
 
     return false;
   }
