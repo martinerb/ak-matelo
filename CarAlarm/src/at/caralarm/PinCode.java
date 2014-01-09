@@ -11,6 +11,8 @@ public class PinCode {
   private PinCode() {
     lock_request = false;
     unlock_request = false;
+    new_pin_code = 0;
+    submitted_pin_code = 0;
   }
 
   public static PinCode getInstance() {
@@ -28,7 +30,9 @@ public class PinCode {
   }
 
   public int getSubmittedPinCode() {
-    return submitted_pin_code;
+    int pin_code = submitted_pin_code;
+    submitted_pin_code = 0;
+    return pin_code;
   }
 
   public void setSubmittedPinCode(int submitted_pin_code) {

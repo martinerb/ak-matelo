@@ -2,29 +2,29 @@ package at.caralarm;
 
 public class Alarmsystem {
   private enum SYSTEMSTATES {
-    INIT, OPENANDUNLOCKED, CLOSEDANDUNLOCKED, OPENANDLOCKED, CLOSEDANDLOCKED, SETPINCODE, ARMED, ALARM, SILENTANDOPEN
+    INIT, OPENANDUNLOCKED, CLOSEDANDUNLOCKED, OPENANDLOCKED, CLOSEDANDLOCKED, PINENTRY, ARMED, ALARM, SILENTANDOPEN
   }
 
   private SYSTEMSTATES currentState;
   private int current_pin_code;
-  private int wrong_new_pin_count;
-  private int wrong_un_lock_pin_count;
-  private boolean set_pin_code;
+  private int wrong_change_pin_count;
+  private int wrong_unlock_pin_count;
+  private boolean change_pin_code;
 
   private Alarmsystem() {
     currentState = SYSTEMSTATES.INIT;
     this.current_pin_code = 123; // muss ein 3-Stelliger Code sein!!
-    this.wrong_new_pin_count = 3;
-    this.wrong_un_lock_pin_count = 3;
-    this.set_pin_code = false;
+    this.wrong_change_pin_count = 3;
+    this.wrong_unlock_pin_count = 3;
+    this.change_pin_code = false;
   }
 
   public void setKeyCode(int key_code) {
     this.current_pin_code = key_code;
   }
 
-  public void setSetPinCode(boolean set_pin_code) {
-    this.set_pin_code = set_pin_code;
+  public void setChangePinCode(boolean set_pin_code) {
+    this.change_pin_code = set_pin_code;
   }
 
   public void stateTransition() {
@@ -50,8 +50,8 @@ public class Alarmsystem {
         closedAndLocked();
         break;
 
-      case SETPINCODE:
-        setPinCode();
+      case PINENTRY:
+        pinEntry();
         break;
 
       case ARMED:
@@ -84,26 +84,26 @@ public class Alarmsystem {
   private void openAndUnlocked() throws AlarmException {
     if (Doors.getInstance().allDoorsClosed()) {
       currentState = SYSTEMSTATES.CLOSEDANDUNLOCKED;
-    } else if (PinCode.getInstance().isLockRequest() && checkUnLockRequest(true)) {
+    } else if (PinCode.getInstance().isLockRequest() && tryToSetLockState(true)) {
       currentState = SYSTEMSTATES.OPENANDLOCKED;
-    } else if (set_pin_code) {
-      currentState = SYSTEMSTATES.SETPINCODE;
+    } else if (change_pin_code) {
+      currentState = SYSTEMSTATES.PINENTRY;
     }
   }
 
   private void closedAndUnlocked() throws AlarmException {
     if (!Doors.getInstance().allDoorsClosed()) {
       currentState = SYSTEMSTATES.OPENANDUNLOCKED;
-    } else if (PinCode.getInstance().isLockRequest() && checkUnLockRequest(true)) {
+    } else if (PinCode.getInstance().isLockRequest() && tryToSetLockState(true)) {
       Timer.getInstance().initActivateAlarmTime();
       currentState = SYSTEMSTATES.CLOSEDANDLOCKED;
-    } else if (set_pin_code) {
-      currentState = SYSTEMSTATES.SETPINCODE;
+    } else if (change_pin_code) {
+      currentState = SYSTEMSTATES.PINENTRY;
     }
   }
 
   private void openAndLocked() throws AlarmException {
-    if (PinCode.getInstance().isUnlockRequest() && checkUnLockRequest(false)) {
+    if (PinCode.getInstance().isUnlockRequest() && tryToSetLockState(false)) {
       currentState = SYSTEMSTATES.OPENANDUNLOCKED;
     } else if (Doors.getInstance().allDoorsClosed()) {
       Timer.getInstance().initActivateAlarmTime();
@@ -112,7 +112,7 @@ public class Alarmsystem {
   }
 
   private void closedAndLocked() throws AlarmException {
-    if (PinCode.getInstance().isUnlockRequest() && checkUnLockRequest(false)) {
+    if (PinCode.getInstance().isUnlockRequest() && tryToSetLockState(false)) {
       currentState = SYSTEMSTATES.CLOSEDANDUNLOCKED;
     } else if (!Doors.getInstance().allDoorsClosed()) {
       currentState = SYSTEMSTATES.OPENANDLOCKED;
@@ -122,18 +122,23 @@ public class Alarmsystem {
     }
   }
 
-  private void setPinCode() throws AlarmException {
+  private void pinEntry() throws AlarmException {
+    if (PinCode.getInstance().getSubmittedPinCode() == 0) // no key send yet
+      return;
+
     if (PinCode.getInstance().getSubmittedPinCode() == current_pin_code) {
+      wrong_change_pin_count = 3;
       int new_pin_code = PinCode.getInstance().getNewPinCode();
       if (new_pin_code >= 100 && new_pin_code < 1000) {
-        wrong_new_pin_count = 3;
         current_pin_code = new_pin_code;
         System.out.println("newPinSet");
+      } else {
+        System.out.println("WARNING: Not allowed new PinCode -> PnCode NOT changed!!");
       }
     } else {
-      --wrong_new_pin_count;
-      if (wrong_new_pin_count <= 0) {
-        wrong_new_pin_count = 3;
+      --wrong_change_pin_count;
+      if (wrong_change_pin_count <= 0) {
+        wrong_change_pin_count = 3;
         throw new AlarmException();
       }
     }
@@ -142,7 +147,7 @@ public class Alarmsystem {
   }
   
   private void armed() throws AlarmException {
-    if (PinCode.getInstance().isUnlockRequest() && checkUnLockRequest(false)) {
+    if (PinCode.getInstance().isUnlockRequest() && tryToSetLockState(false)) {
       currentState = SYSTEMSTATES.CLOSEDANDUNLOCKED;
       System.out.println("ARMED: goto CLOSEDANDUNLOCKED");
     } else if (!Doors.getInstance().allDoorsClosed()) {
@@ -152,7 +157,7 @@ public class Alarmsystem {
   }
 
   private void alarm() throws AlarmException {
-    if (PinCode.getInstance().isUnlockRequest() && checkUnLockRequest(false)) {
+    if (PinCode.getInstance().isUnlockRequest() && tryToSetLockState(false)) {
       Alarm.getInstance().setFlashAndSound(false);
       currentState = SYSTEMSTATES.OPENANDUNLOCKED;
     }
@@ -166,7 +171,7 @@ public class Alarmsystem {
   }
 
   private void silentAndOpen() throws AlarmException {
-    if (PinCode.getInstance().isUnlockRequest() && checkUnLockRequest(false)) {
+    if (PinCode.getInstance().isUnlockRequest() && tryToSetLockState(false)) {
       currentState = SYSTEMSTATES.OPENANDUNLOCKED;
     } else if (Doors.getInstance().allDoorsClosed()) {
       currentState = SYSTEMSTATES.ARMED;
@@ -175,16 +180,16 @@ public class Alarmsystem {
 
   // ----------------------------- Helper Methods -----------------------------
 
-  private boolean checkUnLockRequest(boolean update_lockstate) throws AlarmException {
+  private boolean tryToSetLockState(boolean update_lockstate) throws AlarmException {
     if (current_pin_code == PinCode.getInstance().getSubmittedPinCode()) {
       Doors.getInstance().setDoorsLocked(update_lockstate);
-      wrong_un_lock_pin_count = 3;
+      wrong_unlock_pin_count = 3;
       return true;
     }
 
     if (currentState == SYSTEMSTATES.ARMED) {
-      --wrong_un_lock_pin_count;
-      if (wrong_un_lock_pin_count <= 0)
+      --wrong_unlock_pin_count;
+      if (wrong_unlock_pin_count <= 0)
         throw new AlarmException();
     }
 
