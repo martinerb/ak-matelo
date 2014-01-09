@@ -5,6 +5,7 @@ public class Alarmsystem {
     INIT, OPENANDUNLOCKED, CLOSEDANDUNLOCKED, OPENANDLOCKED, CLOSEDANDLOCKED, PINENTRY, ARMED, ALARM, SILENTANDOPEN
   }
 
+  private static Alarmsystem instance;
   private SYSTEMSTATES currentState;
   private int current_pin_code;
   private int wrong_change_pin_count;
@@ -17,6 +18,12 @@ public class Alarmsystem {
     this.wrong_change_pin_count = 3;
     this.wrong_unlock_pin_count = 3;
     this.change_pin_code = false;
+  }
+
+  public static Alarmsystem getInstance() {
+    if ( instance == null )
+      instance = new Alarmsystem();
+    return instance;
   }
 
   public void setKeyCode(int key_code) {
