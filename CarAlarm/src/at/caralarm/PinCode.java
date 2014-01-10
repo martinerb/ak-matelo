@@ -40,7 +40,9 @@ public class PinCode {
   }
 
   public boolean isLockRequest() {
-    return lock_request;
+    boolean tmp_request = lock_request;
+    lock_request = false;
+    return tmp_request;
   }
 
   public void setLockRequest(boolean lock_request) {
@@ -48,7 +50,9 @@ public class PinCode {
   }
 
   public boolean isUnlockRequest() {
-    return unlock_request;
+    boolean tmp_request = unlock_request;
+    unlock_request = false;
+    return tmp_request;
   }
 
   public void setUnlockRequest(boolean unlock_request) {
