@@ -7,10 +7,12 @@ public class PinCode {
   private int submitted_pin_code;
   private boolean lock_request;
   private boolean unlock_request;
-
+  private boolean change_pin_code;
+  
   private PinCode() {
     lock_request = false;
     unlock_request = false;
+    this.change_pin_code = false;
     new_pin_code = 0;
     submitted_pin_code = 0;
   }
@@ -29,6 +31,15 @@ public class PinCode {
     this.new_pin_code = new_pin_code;
   }
 
+  public void setChangePinCode(boolean set_pin_code) {
+    this.change_pin_code = set_pin_code;
+  }
+  
+  public boolean getChangePinCode() {
+    boolean tmp = this.change_pin_code;
+    change_pin_code = false;
+    return tmp;
+  }
   public int getSubmittedPinCode() {
     int pin_code = submitted_pin_code;
     submitted_pin_code = 0;

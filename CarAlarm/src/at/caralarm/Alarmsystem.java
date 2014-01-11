@@ -10,15 +10,21 @@ public class Alarmsystem {
   private int current_pin_code;
   private int wrong_change_pin_count;
   private int wrong_unlock_pin_count;
-  private boolean change_pin_code;
-
+  
   private Alarmsystem() {
     currentState = SYSTEMSTATES.INIT;
     this.current_pin_code = 100; // muss ein 3-Stelliger Code sein!!
     this.wrong_change_pin_count = 3;
     this.wrong_unlock_pin_count = 3;
-    this.change_pin_code = false;
   }
+  
+  public int getWrongChangePinCount() {
+    return wrong_change_pin_count;
+  }
+  
+  public int getWrongUnlockPinCount() {
+    return wrong_unlock_pin_count;
+  }  
 
   public static Alarmsystem getInstance() {
     if ( instance == null )
@@ -35,10 +41,6 @@ public class Alarmsystem {
   
   public int getCurrentPinCode() {
     return current_pin_code;
-  }
-
-  public void setChangePinCode(boolean set_pin_code) {
-    this.change_pin_code = set_pin_code;
   }
 
   public void stateTransition() {
@@ -101,7 +103,7 @@ public class Alarmsystem {
     } else if (PinCode.getInstance().isLockRequest()) {
       Doors.getInstance().setDoorsLocked(true);
       currentState = SYSTEMSTATES.OPENANDLOCKED;
-    } else if (change_pin_code) {
+    } else if (PinCode.getInstance().getChangePinCode()) {
       currentState = SYSTEMSTATES.PINENTRY;
     }
   }
@@ -113,7 +115,7 @@ public class Alarmsystem {
       Doors.getInstance().setDoorsLocked(true);
       Timer.getInstance().initActivateAlarmTime();
       currentState = SYSTEMSTATES.CLOSEDANDLOCKED;
-    } else if (change_pin_code) {
+    } else if (PinCode.getInstance().getChangePinCode()) {
       currentState = SYSTEMSTATES.PINENTRY;
     }
   }
@@ -139,17 +141,18 @@ public class Alarmsystem {
   }
 
   private void pinEntry() throws AlarmException {
-    if (PinCode.getInstance().getSubmittedPinCode() == 0) // no key send yet
+    int submitted_pin_code = PinCode.getInstance().getSubmittedPinCode();
+    if (submitted_pin_code == 0) // no key send yet
       return;
 
-    if (PinCode.getInstance().getSubmittedPinCode() == current_pin_code) {
+    if (submitted_pin_code == current_pin_code) {
       wrong_change_pin_count = 3;
       int new_pin_code = PinCode.getInstance().getNewPinCode();
       if (new_pin_code >= 100 && new_pin_code < 1000) {
         current_pin_code = new_pin_code;
         System.out.println("newPinSet");
       } else {
-        System.out.println("WARNING: Not allowed new PinCode -> PnCode NOT changed!!");
+        System.out.println("WARNING: Not allowed new PinCode -> PinCode NOT changed!!");
       }
     } else {
       --wrong_change_pin_count;
@@ -205,8 +208,10 @@ public class Alarmsystem {
 
     if (currentState == SYSTEMSTATES.ARMED) {
       --wrong_unlock_pin_count;
-      if (wrong_unlock_pin_count <= 0)
+      if (wrong_unlock_pin_count <= 0) {
+       wrong_unlock_pin_count = 3;
         throw new AlarmException();
+      }
     }
 
     return false;

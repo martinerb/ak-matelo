@@ -47,6 +47,17 @@ public class Primitives {
 
   // ---------------------------------------------------------------------
 
+  // InittoOAU
+  public void init() {
+    Alarmsystem.getInstance().stateTransition();
+
+    // postcondition
+    Assert.assertEquals("OpenAndUnlocked => ClosedAndUnlocked wrong startstate!", Alarmsystem.getInstance()
+        .getSystemstate(), SYSTEMSTATES.OPENANDUNLOCKED);
+    Assert.assertFalse(Doors.getInstance().allDoorsClosed());
+    Assert.assertFalse(Doors.getInstance().allDoorsLocked());
+  }
+
   // OpenAndUnlocked => ClosedAndUnlocked
   public void OAUtoCAU() {
     // precondition
@@ -227,7 +238,7 @@ public class Primitives {
     Alarmsystem.getInstance().stateTransition();
 
     // postcondition
-    if (rest_time == Timer.getInstance().getActivateAlarmTime() && rest_time <= 0) {
+    if ((rest_time == Timer.getInstance().getActivateAlarmTime() || rest_time < 0) && rest_time <= 0) {
       Assert.assertEquals("ClosedAndLocked => Armed wrong endstate!", Alarmsystem.getInstance().getSystemstate(),
           SYSTEMSTATES.ARMED);
       Assert.assertTrue(Doors.getInstance().allDoorsClosed());
@@ -251,6 +262,7 @@ public class Primitives {
     Assert.assertTrue(Doors.getInstance().allDoorsClosed());
     Assert.assertTrue(Doors.getInstance().allDoorsLocked());
 
+    int counter = Alarmsystem.getInstance().getWrongUnlockPinCount();
     boolean right_pin_code = Alarmsystem.getInstance().getCurrentPinCode() == pin_code ? true : false;
     PinCode.getInstance().setSubmittedPinCode(pin_code);
     PinCode.getInstance().setUnlockRequest(true);
@@ -258,20 +270,26 @@ public class Primitives {
 
     // postcondition
     if (right_pin_code) {
-      Assert.assertEquals("ClosedAndLocked => ClosedAndUnlocked wrong endstate!", Alarmsystem.getInstance()
+      Assert.assertEquals("Armed => ClosedAndUnlocked wrong endstate!", Alarmsystem.getInstance()
           .getSystemstate(), SYSTEMSTATES.CLOSEDANDUNLOCKED);
       Assert.assertTrue(Doors.getInstance().allDoorsClosed());
       Assert.assertFalse(Doors.getInstance().allDoorsLocked());
     } else {
-      Assert.assertEquals("Armed => Armed wrong pincode!", Alarmsystem.getInstance().getSystemstate(),
-          SYSTEMSTATES.ARMED);
-      Assert.assertTrue(Doors.getInstance().allDoorsClosed());
-      Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+      if (counter == 1) {
+        Assert.assertEquals("Armed => Armed wrong pincode! and no try left", Alarmsystem.getInstance().getSystemstate(),
+            SYSTEMSTATES.ALARM);
+        Doors.getInstance().setDoorsClosed(false);
+      } else {
+        Assert.assertEquals("Armed => Armed wrong pincode! at least one try left", Alarmsystem.getInstance().getSystemstate(),
+            SYSTEMSTATES.ARMED);
+        Assert.assertTrue(Doors.getInstance().allDoorsClosed());
+        Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+      }
     }
   }
 
   // Armed => Alarm
-  public void ArmedtoAlarm() {
+  public void ArmedtoAlarmFAS() {
     // precondition
     Assert.assertEquals("Armed => Alarm wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
         SYSTEMSTATES.ARMED);
@@ -283,10 +301,12 @@ public class Primitives {
     Alarmsystem.getInstance().stateTransition();
 
     // postcondition
-    Assert
-        .assertEquals("Armed => Alarm wrong pincode!", Alarmsystem.getInstance().getSystemstate(), SYSTEMSTATES.ALARM);
+    Assert.assertEquals("Armed => Alarm wrong endstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.ALARM);
     Assert.assertFalse(Doors.getInstance().allDoorsClosed());
     Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+    Assert.assertTrue(Timer.getInstance().getDeactivateFlashTime() > 0);
+    Assert.assertTrue(Timer.getInstance().getDeactivateSoundTime() > 0);
 
   }
 
@@ -295,7 +315,7 @@ public class Primitives {
   // AlarmFAStoOAU
   public void AlarmFAStoOAU(int pin_code) {
     // precondition
-    Assert.assertEquals("Armed => ClosedAndUnlocked wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+    Assert.assertEquals("AlarmFAStoOAU wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
         SYSTEMSTATES.ALARM);
     Assert.assertTrue(Doors.getInstance().allDoorsLocked());
 
@@ -317,46 +337,219 @@ public class Primitives {
     }
   }
 
-  // Alarm => OpenAndUnlocked
+  // AlarmFlash => OpenAndUnlocked
   public void AlarmFlashtoOAU(int pin_code) {
+    // precondition
+    Assert.assertEquals("Alarm => OpenAndUnlocked wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.ALARM);
+    Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+    Assert.assertTrue(Timer.getInstance().getDeactivateSoundTime() <= 0);
+    Assert.assertFalse(Timer.getInstance().getDeactivateFlashTime() <= 0);
 
+    boolean right_pin_code = Alarmsystem.getInstance().getCurrentPinCode() == pin_code ? true : false;
+    PinCode.getInstance().setSubmittedPinCode(pin_code);
+    PinCode.getInstance().setUnlockRequest(true);
+    Alarmsystem.getInstance().stateTransition();
+
+    // postcondition
+    if (right_pin_code) {
+      Assert.assertEquals("Alarm => OpenAndUnlocked wrong endstate!", Alarmsystem.getInstance().getSystemstate(),
+          SYSTEMSTATES.OPENANDUNLOCKED);
+      Doors.getInstance().setDoorsClosed(false);
+      Assert.assertFalse(Doors.getInstance().allDoorsLocked());
+    } else {
+      Assert.assertEquals("Alarm => Alarm wrong pincode!", Alarmsystem.getInstance().getSystemstate(),
+          SYSTEMSTATES.ALARM);
+      Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+      Assert.assertTrue(Timer.getInstance().getDeactivateSoundTime() <= 0);
+      Assert.assertFalse(Timer.getInstance().getDeactivateFlashTime() <= 0);
+    }
   }
 
   // Alarm => SilentAndOpen
   public void AlarmtoSAO(int time_step) {
+    // precondition
+    Assert.assertEquals("Alarm => SilentAndOpen wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.ALARM);
+    Assert.assertTrue(Doors.getInstance().allDoorsLocked());
 
+    int rest_time = Timer.getInstance().getDeactivateFlashTime() - time_step;
+    Timer.getInstance().increaseTime(time_step);
+    Alarmsystem.getInstance().stateTransition();
+
+    // postcondition
+    if ((rest_time == Timer.getInstance().getDeactivateFlashTime() || rest_time < 0) && rest_time <= 0) {
+      Assert.assertEquals("Alarm => SilentAndOpen wrong endstate!", Alarmsystem.getInstance().getSystemstate(),
+          SYSTEMSTATES.SILENTANDOPEN);
+      Assert.assertFalse(Doors.getInstance().allDoorsClosed());
+      Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+      Assert.assertTrue("wrong aktivate_alarm_time", Timer.getInstance().getDeactivateFlashTime() <= 0);
+    } else {
+      Assert.assertEquals("Alarm => Alarm wrong time!", Alarmsystem.getInstance().getSystemstate(), SYSTEMSTATES.ALARM);
+      Assert.assertFalse(Doors.getInstance().allDoorsClosed());
+      Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+      Assert.assertTrue("wrong aktivate_alarm_time", Timer.getInstance().getDeactivateFlashTime() > 0);
+    }
   }
 
   // AlarmFAS => AlarmFlash
   public void AlarmFAStoAlarmFlash(int time_step) {
+    // precondition
+    Assert.assertEquals("AlarmFAS => AlarmFlash wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.ALARM);
+    Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+    Assert.assertTrue(Timer.getInstance().getDeactivateSoundTime() > 0);
+    Assert.assertTrue(Timer.getInstance().getDeactivateFlashTime() > 0);
 
+    int rest_time = Timer.getInstance().getDeactivateSoundTime() - time_step;
+    Timer.getInstance().increaseTime(time_step);
+    Alarmsystem.getInstance().stateTransition();
+
+    // postcondition
+    if ((rest_time == Timer.getInstance().getDeactivateSoundTime() || rest_time < 0) && rest_time <= 0) {
+      Assert.assertEquals("AlarmFAS => AlarmFlash wrong endstate!", Alarmsystem.getInstance().getSystemstate(),
+          SYSTEMSTATES.ALARM);
+      Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+      Assert.assertTrue("wrong aktivate_alarm_time", Timer.getInstance().getDeactivateSoundTime() <= 0);
+      Assert.assertTrue("wrong aktivate_alarm_time", Timer.getInstance().getDeactivateFlashTime() > 0);
+    } else {
+      Assert.assertEquals("Alarm => Alarm wrong time!", Alarmsystem.getInstance().getSystemstate(), SYSTEMSTATES.ALARM);
+      Assert.assertFalse(Doors.getInstance().allDoorsClosed());
+      Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+      Assert.assertTrue("wrong aktivate_alarm_time", Timer.getInstance().getDeactivateSoundTime() > 0);
+      Assert.assertTrue("wrong aktivate_alarm_time", Timer.getInstance().getDeactivateFlashTime() > 0);
+    }
   }
 
   // SilentAndOpen => OpenAndUnlocked
   public void SAOtoOAU(int pin_code) {
+    // precondition
+    Assert.assertEquals("SilentAndOpen => OpenAndUnlocked wrong startstate!", Alarmsystem.getInstance()
+        .getSystemstate(), SYSTEMSTATES.SILENTANDOPEN);
+    Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+    Assert.assertFalse(Doors.getInstance().allDoorsClosed());
+    Assert.assertTrue(Timer.getInstance().getDeactivateSoundTime() <= 0);
+    Assert.assertTrue(Timer.getInstance().getDeactivateFlashTime() <= 0);
 
+    boolean right_pin_code = Alarmsystem.getInstance().getCurrentPinCode() == pin_code ? true : false;
+    PinCode.getInstance().setSubmittedPinCode(pin_code);
+    PinCode.getInstance().setUnlockRequest(true);
+    Alarmsystem.getInstance().stateTransition();
+
+    // postcondition
+    if (right_pin_code) {
+      Assert.assertEquals("SilentAndOpen => OpenAndUnlocked wrong endstate!", Alarmsystem.getInstance()
+          .getSystemstate(), SYSTEMSTATES.OPENANDUNLOCKED);
+      Doors.getInstance().setDoorsClosed(false);
+      Assert.assertFalse(Doors.getInstance().allDoorsLocked());
+    } else {
+      Assert.assertEquals("SilentAndOpen => SilentAndOpen wrong pincode!", Alarmsystem.getInstance().getSystemstate(),
+          SYSTEMSTATES.SILENTANDOPEN);
+      Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+      Assert.assertTrue(Timer.getInstance().getDeactivateSoundTime() <= 0);
+      Assert.assertTrue(Timer.getInstance().getDeactivateFlashTime() <= 0);
+    }
   }
 
   // SilentAndOpen => Armed
   public void SAOtoArmed() {
+    // precondition
+    Assert.assertEquals("SilentAndOpen => Armed wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.SILENTANDOPEN);
+    Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+    Assert.assertFalse(Doors.getInstance().allDoorsClosed());
+    Assert.assertTrue(Timer.getInstance().getDeactivateSoundTime() <= 0);
+    Assert.assertTrue(Timer.getInstance().getDeactivateFlashTime() <= 0);
 
+    Doors.getInstance().setDoorsClosed(true);
+    Alarmsystem.getInstance().stateTransition();
+
+    // postcondition
+    Assert.assertEquals("SilentAndOpen => Armed wrong pincode!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.ARMED);
+    Assert.assertTrue(Doors.getInstance().allDoorsLocked());
+    Assert.assertTrue(Doors.getInstance().allDoorsClosed());
+    Assert.assertTrue(Timer.getInstance().getDeactivateSoundTime() <= 0);
+    Assert.assertTrue(Timer.getInstance().getDeactivateFlashTime() <= 0);
   }
 
   // ---------------------------------------------------------------------
 
   // OpenAndUnlocked => PinEntry
   public void OAUtoPinEntry() {
+    // precondition
+    Assert.assertEquals("OpenAndUnlocked => PinEntry wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.OPENANDUNLOCKED);
+    Assert.assertFalse(Doors.getInstance().allDoorsLocked());
+    Assert.assertFalse(Doors.getInstance().allDoorsClosed());
+
+    PinCode.getInstance().setChangePinCode(true);
+    Alarmsystem.getInstance().stateTransition();
+
+    // precondition
+    Assert.assertEquals("OpenAndUnlocked => PinEntry wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.PINENTRY);
+    Assert.assertFalse(Doors.getInstance().allDoorsLocked());
+    Assert.assertFalse(Doors.getInstance().allDoorsClosed());
 
   }
 
   // ClosedAndUnlocked => PinEntry
   public void CAUtoPinEntry() {
+    // precondition
+    Assert.assertEquals("ClosedAndUnlocked => PinEntry wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.CLOSEDANDUNLOCKED);
+    Assert.assertFalse(Doors.getInstance().allDoorsLocked());
+    Assert.assertTrue(Doors.getInstance().allDoorsClosed());
 
+    PinCode.getInstance().setChangePinCode(true);
+    Alarmsystem.getInstance().stateTransition();
+
+    // precondition
+    Assert.assertEquals("ClosedAndUnlocked => PinEntry wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.PINENTRY);
+    Assert.assertFalse(Doors.getInstance().allDoorsLocked());
+    Assert.assertTrue(Doors.getInstance().allDoorsClosed());
   }
 
   // PinEntry => OpenAndUnlocked
-  public void PinEntrytoOAU() {
+  public void PinEntrytoOAU(int submitted_pin, int new_pin) {
+    // precondition
+    Assert.assertEquals("PinEntry => OpenAndUnlocked wrong startstate!", Alarmsystem.getInstance().getSystemstate(),
+        SYSTEMSTATES.PINENTRY);
+    Assert.assertFalse(Doors.getInstance().allDoorsLocked());
 
+    int counter = Alarmsystem.getInstance().getWrongChangePinCount();
+    boolean right_pin_code = Alarmsystem.getInstance().getCurrentPinCode() == submitted_pin ? true : false;
+    PinCode.getInstance().setSubmittedPinCode(submitted_pin);
+    PinCode.getInstance().setNewPinCode(new_pin);
+    Alarmsystem.getInstance().stateTransition();
+
+    // postcondition
+    if (right_pin_code) {
+      Assert.assertEquals("PinEntry => OpenAndUnlocked wrong endstate!", Alarmsystem.getInstance().getSystemstate(),
+          SYSTEMSTATES.OPENANDUNLOCKED);
+      Assert.assertFalse(Doors.getInstance().allDoorsLocked());
+      Doors.getInstance().setDoorsClosed(false);
+      if (new_pin >= 100 && new_pin < 1000) {
+        Assert.assertTrue(Alarmsystem.getInstance().getCurrentPinCode() == new_pin);
+      }
+    } else {
+      if (counter == 1) {
+        Assert.assertEquals("PinEntry => Alarm wrong pincode!", Alarmsystem.getInstance().getSystemstate(),
+            SYSTEMSTATES.ALARM);
+        Doors.getInstance().setDoorsClosed(false);
+        Doors.getInstance().setDoorsLocked(true);
+        Assert.assertTrue(Timer.getInstance().getDeactivateFlashTime() > 0);
+        Assert.assertTrue(Timer.getInstance().getDeactivateSoundTime() > 0);
+      } else {
+        Assert.assertEquals("PinEntry => Alarm wrong pincode at least one try left!", Alarmsystem.getInstance()
+            .getSystemstate(), SYSTEMSTATES.OPENANDUNLOCKED);
+        Doors.getInstance().setDoorsClosed(false);
+        Assert.assertTrue(Alarmsystem.getInstance().getWrongChangePinCount() == (counter - 1));
+        Assert.assertTrue(Alarmsystem.getInstance().getWrongChangePinCount() > 0);
+      }
+    }
   }
 
   // ---------------------------------------------------------------------

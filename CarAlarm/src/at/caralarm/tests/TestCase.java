@@ -15,14 +15,14 @@ public class TestCase {
   @Test
   public void testFirstTestCase() {
     Primitives testCase = new Primitives();
-    testCase.AlarmtoOAU();
+
     fail("Not yet implemented");
   }
 
   @Test
   public void testSecondTestCase() {
     Primitives testCase = new Primitives();
-    testCase.AlarmtoOAU();
+
     assertTrue("Not yet implemented", false);
   }
 
